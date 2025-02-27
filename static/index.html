@@ -47,17 +47,39 @@
                     const cube = world.getArcanumCube();
                     cube && cube.undo();
                 });
-                btn_solve.addEventListener('click', async () => {
+                btn_solve.addEventListener('click', () => {
                     const cube = world.getArcanumCube();
+                    let distanceMax = 0.1;
+                    let distanceMin = -1;
                     if (cube) {
-                        const answer = await world.solve();
-                        if (answer.length > 0) {
-                            const q = cube.getHistory();
-                            message.innerHTML =
-                                `Twisted (${q.length}): ${q.join(' ')}<br />` +
-                                `Answer (${answer.length}): ${answer.join(' ')}`;
-                            cube.tweenTwist(answer, false, answer.length * 300, false, {});
-                        }
+                        const q = cube.getHistory();
+                        world.solve({
+                            onSolved: (answer) => {
+                                if (answer.length > 0) {
+                                    message.innerHTML =
+                                        `Twisted (${q.length}): ${q.join(' ')}<br />` +
+                                        `Answer (${answer.length}): ${answer.join(' ')}`;
+                                    cube.tweenTwist(answer, false, answer.length * 300, false, {
+                                        // suppress the display of each twist while showing the answer
+                                        onTwisted: () => {},
+                                    });
+                                }
+                            },
+                            onProgress: (distance) => {
+                                if (distance > distanceMax) distanceMax = distance;
+                                if (distanceMin < 0 || distance < distanceMin)
+                                    distanceMin = distance;
+                                const progress = (1 - distanceMin / distanceMax) * 100;
+                                message.innerHTML =
+                                    `Solving ... ${progress.toFixed(1)}%<br />` +
+                                    `<div class="progress" style="width: ${Math.round(progress)}%"></div>`;
+                            },
+                            onError: (error) => {
+                                const msg =
+                                    error.message || 'Failed to load solver or unknown error';
+                                message.innerHTML = `<pre class="error">${msg}</pre>`;
+                            },
+                        });
                     }
                 });
 
@@ -73,6 +95,21 @@
                 --glow-color: #7ed2cd;
                 --glow-text-radius: 2px;
                 --glow-box-radius: 2px;
+            }
+
+            .error {
+                color: #ff4040;
+            }
+
+            @media screen and (orientation: landscape) {
+                :root {
+                    --messagebox-width: calc(100% - 10em);
+                }
+            }
+            @media screen and (orientation: portrait) {
+                :root {
+                    --messagebox-width: 100%;
+                }
             }
 
             body {
@@ -178,8 +215,6 @@
             div#messagebox {
                 pointer-events: auto;
                 box-sizing: border-box;
-                /* width: 100%; */
-                width: 100%;
                 margin: 8px 16px;
                 padding: 4px 4px;
                 backdrop-filter: blur(4px);
@@ -209,7 +244,7 @@
             }
             @keyframes messagebox-hide {
                 0% {
-                    width: 100%;
+                    width: var(--messagebox-width);
                 }
                 100% {
                     width: 2em;
@@ -220,23 +255,9 @@
                     width: 2em;
                 }
                 100% {
-                    width: 100%;
+                    width: var(--messagebox-width);
                 }
             }
-            /*
-            @media screen and (orientation: landscape) {
-                div#messagebox {
-                    width: 20%;
-                    height: 100%;
-                }
-            }
-            @media screen and (orientation: portrait) {
-                div#messagebox {
-                    width: 100%;
-                    height: 8em;
-                }
-            }
-            */
 
             div#message {
                 margin: 0px;
@@ -247,6 +268,14 @@
 
             div#messagebox.hide > div#message {
                 visibility: hidden;
+            }
+
+            div.progress {
+                border: 1px solid var(--glow-color);
+                background-color: rgba(from var(--glow-color) r g b / 0.8);
+                margin: 4px 0px;
+                padding: 0px 0px;
+                height: 3px;
             }
         </style>
     </head>

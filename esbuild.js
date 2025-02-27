@@ -4,7 +4,7 @@ import fse from 'fs-extra';
 
 const progname = 'demo';
 const srcdir = './src';
-const sources = [`${srcdir}/main.ts`];
+const sources = [`${srcdir}/demo.ts`, `${srcdir}/solver.ts`];
 const externals = [];
 const destdir = './dist';
 const staticdir = './static';
@@ -29,7 +29,9 @@ const buildOptionsESM = {
     platform: 'node',
     format: 'esm',
     entryPoints: sources,
-    outfile: `${destdir}/${progname}.js`,
+    // entryNames: '[dir]/[name]-[hash]',
+    entryNames: '[name]',
+    outdir: `${destdir}`,
     bundle: true,
     minify: true,
     sourcemap: true,

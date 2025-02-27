@@ -2,8 +2,7 @@ import * as THREE from 'three';
 import * as TWEEN from '@tweenjs/tween.js';
 import * as ARCCUBE from 'arcanumcube';
 import { PointerControl, type PointerAction } from './pointer.js';
-import * as tf from '@tensorflow/tfjs';
-import HeapQueue from './heapqueue.js';
+import { SolverMessage } from './solver.js';
 
 export class PointerDelta {
     update!: boolean;
@@ -1001,100 +1000,34 @@ export class World {
         this._tweens.add(tween);
     }
 
-    async solve(): Promise<ARCCUBE.Twist[]> {
-        if (!this._arccube) return [];
+    // call a web worker to prevent the browser from freezing during solving.
+    solve(opts: {
+        onSolved: (answer: ARCCUBE.Twist[]) => void;
+        onProgress?: (distance: number) => void;
+        onError?: (error: ErrorEvent) => void;
+    }) {
+        if (!this._arccube || this._arccube.isTwisting()) return;
+        const arccube = this._arccube;
 
-        const stickers = this._arccube.getStickerColors();
-        return await this._getAnswer(stickers, 100, 150, 0.3);
-    }
+        arccube.lockTwist(true);
 
-    private async _getAnswer(
-        stickers: ARCCUBE.StickerColor[],
-        batchSize: number,
-        n: number,
-        l: number,
-    ): Promise<ARCCUBE.Twist[]> {
-        if (!this._arccube) return [];
+        const solver = new Worker('solver.js');
 
-        tf.engine().startScope();
-        //console.log(tf.memory());
-
-        function getNextStateAndAnswers(): [ARCCUBE.StickerColor[][], ARCCUBE.Twist[][]] {
-            const s: ARCCUBE.StickerColor[][] = [];
-            const t: ARCCUBE.Twist[][] = [];
-            const range = Math.min(n, queue.length());
-            for (let i = 0; i < range; i++) {
-                const v = queue.heappop();
-                if (!v) continue;
-
-                for (const action of ARCCUBE.SINGLE_TWIST_LIST) {
-                    const next_state = ARCCUBE.getNextStickerColors(v.state, action);
-                    const next_answer = [...v.answer]; // clone
-                    next_answer.push(action); // clone + push
-                    const next_state_id = next_state.join('');
-                    if (
-                        !(next_state_id in visitedStates) ||
-                        visitedStates[next_state_id] > next_answer.length
-                    ) {
-                        visitedStates[next_state_id] = next_answer.length;
-                        s.push(next_state);
-                        t.push(next_answer);
-                    }
-                }
+        solver.postMessage({ stickers: arccube.getStickerColors() });
+        solver.onmessage = function (event) {
+            const msg = <SolverMessage>event.data;
+            if (msg.distance === -1) {
+                arccube.lockTwist(false);
+                opts.onSolved(msg.answer || []);
+            } else {
+                opts.onProgress && opts.onProgress(msg.distance);
             }
+        };
 
-            return [s, t];
-        }
-
-        if (ARCCUBE.MatchGoalState(stickers)) {
-            console.log('Already solved.');
-            return [];
-        }
-
-        //const model = await tf.loadGraphModel('./asset/model/twist_cost/model.json');
-        const model = await tf.loadLayersModel('./asset/model/twist_cost/model.json');
-        //console.log(model.summary());
-
-        // search queue
-        const queue = new HeapQueue<{ state: ARCCUBE.StickerColor[]; answer: ARCCUBE.Twist[] }>();
-        queue.heappush(0, { state: stickers, answer: [] });
-        const visitedStates = { [stickers.join('')]: 0 };
-
-        while (queue.length() > 0) {
-            const [next_states, next_answers] = getNextStateAndAnswers();
-            const x: number[][][][] = [];
-            for (let i = 0; i < next_states.length; i++) {
-                const next_state = next_states[i];
-                const next_answer = next_answers[i];
-                if (ARCCUBE.MatchGoalState(next_state)) {
-                    model.dispose();
-                    tf.engine().endScope();
-                    return next_answer;
-                }
-                const a = ARCCUBE.getArrayForTensor(next_state);
-                x.push(a);
-            }
-
-            const cost_to_goals = tf.tidy(() => {
-                const tx = tf.tensor(x);
-                const y = model.predict(tx, { batchSize }) as tf.Tensor;
-                const c = y.dataSync();
-                return c;
-            });
-            //console.log(cost_to_goals);
-            //console.log(tf.memory());
-
-            next_answers.forEach((next_answer, i) => {
-                queue.heappush(l * next_answer.length + cost_to_goals[i], {
-                    state: next_states[i],
-                    answer: next_answers[i],
-                });
-            });
-        }
-
-        // Answer not found
-        tf.engine().endScope();
-        console.log('Could not found any answers, give up.');
-        return [];
+        // error handling
+        solver.onerror = function (error) {
+            arccube.lockTwist(false);
+            opts.onError && opts.onError(error);
+        };
     }
 }
