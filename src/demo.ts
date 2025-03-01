@@ -101,7 +101,7 @@ export class World {
         this._lookAt = new THREE.Vector3(0, 0, 0);
         this._zoom = 5;
         // 対象に対するカメラの距離調整係数（小さくすると近くなり、大きくすると遠くなる）
-        this._zoomScale = 1.0;
+        this._zoomScale = 1.2;
         this._delta = new PointerDelta();
         this._raycaster = new THREE.Raycaster();
         this._arccubes = [];
@@ -489,7 +489,7 @@ export class World {
             // tween
             this._tweens.update(time);
             for (const c of this._arccubes) {
-                c.updateTweens();
+                c.update();
             }
 
             // render
@@ -899,39 +899,39 @@ export class World {
             },
             KeyU: () => {
                 const twist = this._shiftL ? ARCCUBE.TWIST.UR : ARCCUBE.TWIST.U;
-                this._arccube && this._arccube.tweenTwist(twist);
+                this._arccube && this._arccube.easingTwist(twist);
             },
             KeyD: () => {
                 const twist = this._shiftL ? ARCCUBE.TWIST.DR : ARCCUBE.TWIST.D;
-                this._arccube && this._arccube.tweenTwist(twist);
+                this._arccube && this._arccube.easingTwist(twist);
             },
             KeyF: () => {
                 const twist = this._shiftL ? ARCCUBE.TWIST.FR : ARCCUBE.TWIST.F;
-                this._arccube && this._arccube.tweenTwist(twist);
+                this._arccube && this._arccube.easingTwist(twist);
             },
             KeyB: () => {
                 const twist = this._shiftL ? ARCCUBE.TWIST.BR : ARCCUBE.TWIST.B;
-                this._arccube && this._arccube.tweenTwist(twist);
+                this._arccube && this._arccube.easingTwist(twist);
             },
             KeyR: () => {
                 const twist = this._shiftL ? ARCCUBE.TWIST.RR : ARCCUBE.TWIST.R;
-                this._arccube && this._arccube.tweenTwist(twist);
+                this._arccube && this._arccube.easingTwist(twist);
             },
             KeyL: () => {
                 const twist = this._shiftL ? ARCCUBE.TWIST.LR : ARCCUBE.TWIST.L;
-                this._arccube && this._arccube.tweenTwist(twist);
+                this._arccube && this._arccube.easingTwist(twist);
             },
             KeyM: () => {
                 const twist = this._shiftL ? ARCCUBE.TWIST.MR : ARCCUBE.TWIST.M;
-                this._arccube && this._arccube.tweenTwist(twist);
+                this._arccube && this._arccube.easingTwist(twist);
             },
             KeyE: () => {
                 const twist = this._shiftL ? ARCCUBE.TWIST.ER : ARCCUBE.TWIST.E;
-                this._arccube && this._arccube.tweenTwist(twist);
+                this._arccube && this._arccube.easingTwist(twist);
             },
             KeyS: () => {
                 const twist = this._shiftL ? ARCCUBE.TWIST.SR : ARCCUBE.TWIST.S;
-                this._arccube && this._arccube.tweenTwist(twist);
+                this._arccube && this._arccube.easingTwist(twist);
             },
             KeyZ: () => {
                 this._arccube && this._arccube.undo();

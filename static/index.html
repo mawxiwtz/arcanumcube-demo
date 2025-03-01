@@ -8,7 +8,9 @@
         <script type="importmap">
             {
                 "imports": {
-                    "demo": "./demo.js"
+                    "demo": "./demo.js",
+                    "three": "https://cdn.jsdelivr.net/npm/three@0.174.0/+esm",
+                    "three/examples/jsm/": "https://cdn.jsdelivr.net/npm/three@0.174.0/examples/jsm/"
                 }
             }
         </script>
@@ -59,7 +61,7 @@
                                     message.innerHTML =
                                         `Twisted (${q.length}): ${q.join(' ')}<br />` +
                                         `Answer (${answer.length}): ${answer.join(' ')}`;
-                                    cube.tweenTwist(answer, false, answer.length * 300, false, {
+                                    cube.easingTwist(answer, false, answer.length * 300, false, {
                                         // suppress the display of each twist while showing the answer
                                         onTwisted: () => {},
                                     });
@@ -264,6 +266,8 @@
                 padding: 8px;
                 height: 5em;
                 overflow-y: scroll;
+                scrollbar-width: thin;
+                scrollbar-color: var(--glow-color) var(--background-color);
             }
 
             div#messagebox.hide > div#message {

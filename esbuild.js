@@ -4,8 +4,8 @@ import fse from 'fs-extra';
 
 const progname = 'demo';
 const srcdir = './src';
-const sources = [`${srcdir}/demo.ts`, `${srcdir}/solver.ts`];
-const externals = [];
+const sources = [`${srcdir}/${progname}.ts`, `${srcdir}/solver.ts`];
+const externals = ['three'];
 const destdir = './dist';
 const staticdir = './static';
 const isServeMode = process.argv.includes('--serve');
