@@ -1,4 +1,4 @@
-import * as ARCCUBE from 'arcanumcube/core';
+import * as ARCCUBE from 'arcanumcube';
 import * as tf from '@tensorflow/tfjs';
 import HeapQueue from './heapqueue.js';
 
@@ -58,8 +58,10 @@ async function solve(
         return [];
     }
 
-    //const model = await tf.loadGraphModel('./asset/model/twist_cost/model.json');
-    const model = await tf.loadLayersModel('./asset/model/twist_cost/model.json');
+    // Worker内は別スコープのため、ファイルパス指定はURIベースに注意する必要がある。
+    const modelUrl = new URL('/assets/model/twist_cost/model.json', import.meta.url);
+    //const model = await tf.loadGraphModel(modelUrl.toString());
+    const model = await tf.loadLayersModel(modelUrl.toString());
     //console.log(model.summary());
 
     // search queue

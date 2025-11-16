@@ -3,6 +3,7 @@ import * as TWEEN from '@tweenjs/tween.js';
 import * as ARCCUBE from 'arcanumcube';
 import { PointerControl, type PointerAction } from './pointer.js';
 import { SolverMessage } from './solver.js';
+import SolverWorker from './solver.js?worker';
 
 export class PointerDelta {
     update!: boolean;
@@ -309,10 +310,10 @@ export class World {
             enableZoom: config.enableZoom,
             enableMoveBy2Fingers: false,
             enableZoomBy3Fingers: false,
-            onPointerStart: this.handlerPointerStart(),
-            onPointerStop: this.handlerPointerStop(),
+            onPointerDown: this.handlerPointerDown(),
+            onPointerUp: this.handlerPointerUp(),
             onPointerMove: this.handlerPointerMove(),
-            onMouseWheel: this.handlerMouseWheel(),
+            onWheel: this.handlerWheel(),
         });
 
         // ambient light
@@ -423,10 +424,10 @@ export class World {
         if (!this._renderer || !this._camera) return;
         const renderer = this._renderer;
         const camera = this._camera;
-        const clock = new THREE.Clock();
+        //const clock = new THREE.Clock();
 
         let opened = false;
-        let delta;
+        //let delta;
 
         // prepare camera moving
         const distance = this._calcCameraDistanceByZoom(
@@ -668,18 +669,22 @@ export class World {
         }
     }
 
-    handlerPointerStart() {
+    handlerPointerDown() {
         return (event: PointerEvent, pointerAction: PointerAction) => {
-            this._checkRaycast(event);
-            this._drag(event, pointerAction);
+            if (pointerAction.pointersNum === 1) {
+                this._checkRaycast(event);
+                this._drag(event, pointerAction);
+            }
         };
     }
 
-    handlerPointerStop() {
+    handlerPointerUp() {
         return (event: PointerEvent, pointerAction: PointerAction) => {
-            if (this._pointerControl) this._pointerControl.enableRotate = true;
-            this._arccube && this._arccube.deselectSticker();
-            this._dragEnd(event, pointerAction);
+            if (pointerAction.pointersNum === 0) {
+                if (this._pointerControl) this._pointerControl.enableRotate = true;
+                this._arccube?.deselectSticker();
+                this._dragEnd(/* event, pointerAction */);
+            }
         };
     }
 
@@ -690,7 +695,7 @@ export class World {
         };
     }
 
-    handlerMouseWheel() {
+    handlerWheel() {
         return (event: WheelEvent, pa: PointerAction) => {
             this._calc(pa, this._config.zoomSpeed);
         };
@@ -826,7 +831,6 @@ export class World {
         // from here on, the twisting process
         if (!this._twisting) return;
 
-        const pointer_list = Object.values(pointerAction.pointers);
         if (pointerAction.pointersNum === 1) {
             if (!this._arccube) return;
             const arccube = this._arccube;
@@ -878,8 +882,8 @@ export class World {
         }
     }
 
-    private _dragEnd(event: PointerEvent, pointerAction: PointerAction) {
-        this._arccube && this._arccube.dragTwistEnd();
+    private _dragEnd(/* event: PointerEvent, pointerAction: PointerAction */) {
+        this._arccube?.dragTwistEnd();
         this._delta.clear();
         this._twisting = false;
     }
@@ -899,57 +903,57 @@ export class World {
             },
             KeyU: () => {
                 const twist = this._shiftL ? ARCCUBE.TWIST.UR : ARCCUBE.TWIST.U;
-                this._arccube && this._arccube.easingTwist(twist);
+                this._arccube?.easingTwist(twist);
             },
             KeyD: () => {
                 const twist = this._shiftL ? ARCCUBE.TWIST.DR : ARCCUBE.TWIST.D;
-                this._arccube && this._arccube.easingTwist(twist);
+                this._arccube?.easingTwist(twist);
             },
             KeyF: () => {
                 const twist = this._shiftL ? ARCCUBE.TWIST.FR : ARCCUBE.TWIST.F;
-                this._arccube && this._arccube.easingTwist(twist);
+                this._arccube?.easingTwist(twist);
             },
             KeyB: () => {
                 const twist = this._shiftL ? ARCCUBE.TWIST.BR : ARCCUBE.TWIST.B;
-                this._arccube && this._arccube.easingTwist(twist);
+                this._arccube?.easingTwist(twist);
             },
             KeyR: () => {
                 const twist = this._shiftL ? ARCCUBE.TWIST.RR : ARCCUBE.TWIST.R;
-                this._arccube && this._arccube.easingTwist(twist);
+                this._arccube?.easingTwist(twist);
             },
             KeyL: () => {
                 const twist = this._shiftL ? ARCCUBE.TWIST.LR : ARCCUBE.TWIST.L;
-                this._arccube && this._arccube.easingTwist(twist);
+                this._arccube?.easingTwist(twist);
             },
             KeyM: () => {
                 const twist = this._shiftL ? ARCCUBE.TWIST.MR : ARCCUBE.TWIST.M;
-                this._arccube && this._arccube.easingTwist(twist);
+                this._arccube?.easingTwist(twist);
             },
             KeyE: () => {
                 const twist = this._shiftL ? ARCCUBE.TWIST.ER : ARCCUBE.TWIST.E;
-                this._arccube && this._arccube.easingTwist(twist);
+                this._arccube?.easingTwist(twist);
             },
             KeyS: () => {
                 const twist = this._shiftL ? ARCCUBE.TWIST.SR : ARCCUBE.TWIST.S;
-                this._arccube && this._arccube.easingTwist(twist);
+                this._arccube?.easingTwist(twist);
             },
             KeyZ: () => {
-                this._arccube && this._arccube.undo();
+                this._arccube?.undo();
             },
             Digit0: () => {
-                this._arccube && this._arccube.reset();
+                this._arccube?.reset();
             },
             Digit1: () => {
-                this._arccube && this._arccube.scramble();
+                this._arccube?.scramble();
             },
             Digit2: () => {
-                this._arccube && this._arccube.scramble(10);
+                this._arccube?.scramble(10);
             },
             Digit3: () => {
-                this._arccube && this._arccube.scramble(20);
+                this._arccube?.scramble(20);
             },
             Digit4: () => {
-                this._arccube && this._arccube.scramble(30);
+                this._arccube?.scramble(30);
             },
             Space: () => {
                 this._upsideDownCamera();
@@ -1011,23 +1015,23 @@ export class World {
 
         arccube.lockTwist(true);
 
-        const solver = new Worker('solver.js');
+        const solver = new SolverWorker();
 
         solver.postMessage({ stickers: arccube.getStickerColors() });
-        solver.onmessage = function (event) {
+        solver.onmessage = function (event: MessageEvent) {
             const msg = <SolverMessage>event.data;
             if (msg.distance === -1) {
                 arccube.lockTwist(false);
                 opts.onSolved(msg.answer || []);
             } else {
-                opts.onProgress && opts.onProgress(msg.distance);
+                opts.onProgress?.(msg.distance);
             }
         };
 
         // error handling
-        solver.onerror = function (error) {
+        solver.onerror = function (error: ErrorEvent) {
             arccube.lockTwist(false);
-            opts.onError && opts.onError(error);
+            opts.onError?.(error);
         };
     }
 }

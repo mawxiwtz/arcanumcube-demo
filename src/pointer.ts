@@ -13,19 +13,32 @@ type PointerInfo = {
 /*
  * PointerAction field values
  *
- *                     wheel        single             multi-touch
- *        field                 normal  shift      2fingers   3fingers
+ *                     wheel      single             multi-touch
+ *        field               normal  control     2fingers   3fingers
  *  -----------------------------------------------------------------------
- *     pointersNum       1         1       1            2          3
- *     pointers        <obj>     <obj>   <obj>        <obj>      <obj>
- *     center x          x         U       U            x          x
- *            y          y         U       U            y          y
- *     delta  x          0        dx       0           dx         dx
- *            y          0        dy       0           dy         dy
- *            z        wheel       0       0          zoom       zoom
- *            theta      0         0      rad           0        rad
- *            thetaX     0         0      dx            0          0
- *            thetaY     0         0      dy            0          0
+ *     pointersNum        1       1       1            2          3
+ *     pointers       <obj>   <obj>   <obj>        <obj>      <obj>
+ *     center x           x       U      cx            x          x
+ *            y           y       U      cy            y          y
+ *     delta  x           0      dx       0           dx         dx
+ *            y           0      dy       0           dy         dy
+ *            z       wheel       0       0         zoom       zoom
+ *            theta       0       0     rad            0        rad
+ *            thetaX      0       0      dx            0          0
+ *            thetaY      0       0      dy            0          0
+ *    ------------------------------------------------------------------
+ *        zoom            t                            t          t
+ *        move                    t                    t          t
+ *      rotate                            t                       t
+ *
+ *       U = undefined
+ *       x = current x    y = current y
+ *      cx = center x    cy = center y
+ *      dx = delta x     dy = delta y
+ *
+ *        zoom: use center.x, center.y, delta.z
+ *        move: use delta.x, delta.y
+ *      rotate: use center.x, center.y, delta.theta
  */
 export type PointerAction = {
     pointersNum: number; // touching fingers number
@@ -57,10 +70,13 @@ export type PointerControlOptions = {
     enableZoom?: boolean;
     enableMoveBy2Fingers?: boolean;
     enableZoomBy3Fingers?: boolean;
-    onPointerStart?: PointerEventHandler;
-    onPointerStop?: PointerEventHandler;
+    onPointerDown?: PointerEventHandler;
+    onPointerUp?: PointerEventHandler;
+    onGotPointerCapture?: PointerEventHandler;
+    onLostPointerCapture?: PointerEventHandler;
     onPointerMove?: PointerEventHandler;
-    onMouseWheel?: WheelEventHandler;
+    onPointerCancel?: PointerEventHandler;
+    onWheel?: WheelEventHandler;
 };
 
 export class PointerControl {
@@ -75,12 +91,19 @@ export class PointerControl {
     _isMoving: boolean;
     _pointers: Record<number, PointerInfo>;
     _pointerAction: PointerAction;
-    _shift: boolean;
 
-    _onPointerStart?: PointerEventHandler;
-    _onPointerStop?: PointerEventHandler;
+    _interval_wheel: number; // ホイールイベントの処理を間引く（例：ms単位で判定）
+    _accumulatedDelta: number; // ホイールの累積値
+    _accumulatedDeltaWeight: number; // 累積値のウェイト（調整用）
+    _timer_wheel: number | null; // タイマー
+
+    _onPointerDown?: PointerEventHandler;
+    _onPointerUp?: PointerEventHandler;
+    _onGotPointerCapture?: PointerEventHandler;
+    _onLostPointerCapture?: PointerEventHandler;
     _onPointerMove?: PointerEventHandler;
-    _onMouseWheel?: WheelEventHandler;
+    _onPointerCancel?: PointerEventHandler;
+    _onWheel?: WheelEventHandler;
 
     constructor(options: Partial<PointerControlOptions>) {
         this.enableRotate = true;
@@ -89,7 +112,6 @@ export class PointerControl {
         this.enableZoomBy3Fingers = true;
         this._enabled = true;
         this._isMoving = false;
-        this._shift = false;
 
         this._pointers = {};
         this._pointerAction = {
@@ -104,6 +126,11 @@ export class PointerControl {
                 thetaY: 0,
             },
         };
+
+        this._interval_wheel = 20;
+        this._accumulatedDelta = 0;
+        this._accumulatedDeltaWeight = 30;
+        this._timer_wheel = null;
 
         // set option parameters
         if (options.container) {
@@ -126,39 +153,49 @@ export class PointerControl {
         if (options.enableZoomBy3Fingers != null) {
             this.enableZoomBy3Fingers = options.enableZoomBy3Fingers;
         }
-        if (options.onPointerStart) {
-            this._onPointerStart = options.onPointerStart;
+        if (options.onPointerDown) {
+            this._onPointerDown = options.onPointerDown;
         }
-        if (options.onPointerStop) {
-            this._onPointerStop = options.onPointerStop;
+        if (options.onPointerUp) {
+            this._onPointerUp = options.onPointerUp;
+        }
+        if (options.onGotPointerCapture) {
+            this._onGotPointerCapture = options.onGotPointerCapture;
+        }
+        if (options.onLostPointerCapture) {
+            this._onLostPointerCapture = options.onLostPointerCapture;
         }
         if (options.onPointerMove) {
             this._onPointerMove = options.onPointerMove;
         }
-        if (options.onMouseWheel) {
-            this._onMouseWheel = options.onMouseWheel;
+        if (options.onPointerCancel) {
+            this._onPointerCancel = options.onPointerCancel;
+        }
+        if (options.onWheel) {
+            this._onWheel = options.onWheel;
         }
 
         // disable pinch in-out by browser
         this._container.addEventListener('touchstart', (event) => {
             event.preventDefault();
         });
+        // disable right-click menu
+        this._container.addEventListener('contextmenu', (event) => {
+            event.preventDefault();
+        });
 
         // set pointer events
         this._container.addEventListener('pointerdown', this.handlerPointerDown());
         this._container.addEventListener('pointerup', this.handlerPointerUp());
+        this._container.addEventListener('gotpointercapture', this.handlerGotPointerCapture());
+        this._container.addEventListener('lostpointercapture', this.handlerLostPointerCapture());
         this._container.addEventListener('pointermove', this.handlerPointerMove());
-        this._container.addEventListener('wheel', this.handlerMouseWheel());
-        //this._container.addEventListener('gotpointercapture', this.handlerGotPointerCapture());
-        //this._container.addEventListener('lostpointercapture', this.handlerLostPointerCapture());
-
-        this._container.addEventListener('keydown', this.handlerKeyDown());
-        this._container.addEventListener('keyup', this.handlerKeyUp());
+        this._container.addEventListener('pointercancel', this.handlerPointerCancel());
+        this._container.addEventListener('wheel', this.handlerWheel());
     }
 
     enable() {
         //this._isMoving = false;
-        //this._shiftL = false;
         this._pointers = {};
         this._pointerAction = {
             pointersNum: 0,
@@ -180,55 +217,80 @@ export class PointerControl {
         this._enabled = false;
     }
 
+    actionPointerDown(e: PointerEvent) {
+        const element = <HTMLElement>e.currentTarget;
+        element.setPointerCapture(e.pointerId);
+
+        this._pointers[e.pointerId] = {
+            id: e.pointerId,
+            x: e.offsetX,
+            y: e.offsetY,
+        };
+
+        const pointers = Object.values(this._pointers);
+        this._pointerAction.pointersNum = pointers.length;
+        if (pointers.length === 1) {
+            // 最初の指ならば移動開始
+            this._isMoving = true;
+        }
+    }
+
+    actionPointerUp(e: PointerEvent) {
+        const element = <HTMLElement>e.currentTarget;
+        element.releasePointerCapture(e.pointerId);
+
+        delete this._pointers[e.pointerId];
+
+        const pointers = Object.values(this._pointers);
+        this._pointerAction.pointersNum = pointers.length;
+        if (pointers.length === 0) {
+            // 指がすべて離れた
+            this._isMoving = false;
+        }
+    }
+
     handlerPointerDown() {
         return (e: PointerEvent) => {
-            const element = <HTMLElement>e.currentTarget;
-            element.setPointerCapture(e.pointerId);
-
             if (!this._enabled) return;
 
-            this._pointers[e.pointerId] = {
-                id: e.pointerId,
-                x: e.offsetX,
-                y: e.offsetY,
-            };
-
-            const pointers = Object.values(this._pointers);
-            this._pointerAction.pointersNum = pointers.length;
-            if (pointers.length === 1) {
-                // 最初の指ならばタッチ開始
-                this._isMoving = true;
-                this._onPointerStart && this._onPointerStart(e, this._pointerAction);
-            }
+            this.actionPointerDown(e);
+            this._onPointerDown?.(e, this._pointerAction);
         };
     }
 
     handlerPointerUp() {
         return (e: PointerEvent) => {
             //e.preventDefault();
-
-            const element = <HTMLElement>e.currentTarget;
-            element.releasePointerCapture(e.pointerId);
-
             if (!this._enabled) return;
 
-            delete this._pointers[e.pointerId];
+            this.actionPointerUp(e);
+            this._onPointerUp?.(e, this._pointerAction);
+        };
+    }
 
-            const pointers = Object.values(this._pointers);
-            this._pointerAction.pointersNum = pointers.length;
-            if (pointers.length === 0) {
-                // 指がすべて離れた
-                this._isMoving = false;
-                this._onPointerStop && this._onPointerStop(e, this._pointerAction);
-            }
+    handlerGotPointerCapture() {
+        return (e: PointerEvent) => {
+            if (!this._enabled) return;
+            this._onGotPointerCapture?.(e, this._pointerAction);
+        };
+    }
+
+    handlerLostPointerCapture() {
+        return (e: PointerEvent) => {
+            if (!this._enabled) return;
+            // pointerupイベントが呼ばれない場合もあるため、lostpointercaptureイベントでも
+            // 念の為にup処理を行う。
+            this.actionPointerUp(e);
+            this._onLostPointerCapture?.(e, this._pointerAction);
         };
     }
 
     handlerPointerMove() {
         return (e: PointerEvent) => {
+            if (!this._enabled) return;
+
             //e.preventDefault();
 
-            if (!this._enabled) return;
             if (!this._isMoving) return;
 
             // update pointers info
@@ -347,13 +409,13 @@ export class PointerControl {
                 // dragging mouse or single touch
                 this._pointerAction.delta.z = 0;
 
-                if (this.enableRotate && this._shift) {
-                    // Shift + ドラッグでポインタの位置を中心とした回転
+                if (this.enableRotate && e.ctrlKey) {
+                    // Control + ドラッグでポインタの位置を中心とした回転
                     const v0 = new Vector2(p0.old.x / w - 0.5, p0.old.y / h - 0.5);
                     const v1 = new Vector2(p0.x / w - 0.5, p0.y / h - 0.5);
                     const sign = v0.cross(v1) < 0 ? -1 : 1;
 
-                    this._pointerAction.center = undefined;
+                    this._pointerAction.center = { x: w / 2, y: h / 2 };
                     this._pointerAction.delta.x = 0;
                     this._pointerAction.delta.y = 0;
                     this._pointerAction.delta.theta = v0.angleTo(v1) * sign;
@@ -370,75 +432,56 @@ export class PointerControl {
                 }
             }
 
-            this._onPointerMove && this._onPointerMove(e, this._pointerAction);
+            this._onPointerMove?.(e, this._pointerAction);
         };
     }
 
-    handlerGotPointerCapture() {
+    handlerPointerCancel() {
         return (e: PointerEvent) => {
-            this._pointers[e.pointerId] = {
-                id: e.pointerId,
-                x: e.offsetX,
-                y: e.offsetY,
-            };
+            this._onPointerCancel?.(e, this._pointerAction);
         };
     }
 
-    handlerLostPointerCapture() {
-        return (e: PointerEvent) => {
-            delete this._pointers[e.pointerId];
-        };
-    }
-
-    handlerMouseWheel() {
+    handlerWheel() {
         return (e: WheelEvent) => {
+            if (!this._enabled) return;
+
             // disable wheel action by browser
             e.preventDefault();
 
-            if (!this._enabled) return;
             if (!this.enableZoom) return;
 
-            // ホイール操作開始位置を中心に拡大縮小する
-            const x = e.offsetX;
-            const y = e.offsetY;
+            // イベントのdeltaYを累積
+            this._accumulatedDelta += e.deltaY;
 
-            this._pointerAction.center = { x, y };
-            this._pointerAction.delta.x = 0;
-            this._pointerAction.delta.y = 0;
-            this._pointerAction.delta.z = e.deltaY;
-            this._pointerAction.delta.theta = 0;
-            this._pointerAction.delta.thetaX = 0;
-            this._pointerAction.delta.thetaY = 0;
+            // タイマーがまだ動いていなければ起動
+            if (this._timer_wheel === null) {
+                this._timer_wheel = window.setTimeout(() => {
+                    // 増分が正なら +1, 負なら -1
+                    const wa = this._accumulatedDelta / this._accumulatedDeltaWeight;
+                    const direction = wa > 1.0 ? 1 : wa < -1.0 ? -1 : 0;
 
-            this._onMouseWheel && this._onMouseWheel(e, this._pointerAction);
-        };
-    }
+                    if (direction !== 0) {
+                        // ホイール操作開始位置を中心に拡大縮小する
+                        const x = e.offsetX;
+                        const y = e.offsetY;
 
-    handlerKeyDown() {
-        const keyMap: Record<string, () => void> = {
-            ShiftLeft: () => {
-                this._shift = true;
-            },
-        };
+                        this._pointerAction.center = { x, y };
+                        this._pointerAction.delta.x = 0;
+                        this._pointerAction.delta.y = 0;
+                        this._pointerAction.delta.z = direction;
+                        this._pointerAction.delta.theta = 0;
+                        this._pointerAction.delta.thetaX = 0;
+                        this._pointerAction.delta.thetaY = 0;
 
-        return (e: KeyboardEvent) => {
-            if (!this._enabled) return;
-            const func = keyMap[e.code];
-            if (func) func();
-        };
-    }
+                        this._onWheel?.(e, this._pointerAction);
+                    }
 
-    handlerKeyUp() {
-        const keyMap: Record<string, () => void> = {
-            ShiftLeft: () => {
-                this._shift = false;
-            },
-        };
-
-        return (e: KeyboardEvent) => {
-            if (!this._enabled) return;
-            const func = keyMap[e.code];
-            if (func) func();
+                    // 累積リセット
+                    this._accumulatedDelta = 0;
+                    this._timer_wheel = null;
+                }, this._interval_wheel);
+            }
         };
     }
 }

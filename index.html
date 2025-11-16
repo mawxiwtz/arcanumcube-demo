@@ -1,0 +1,35 @@
+<html>
+    <head>
+        <title>Arcanum Cube Demo Page</title>
+        <meta charset="utf-8" />
+        <meta
+            name="viewport"
+            content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0" />
+        <script type="importmap">
+            {
+                "imports": {
+                    "arcanumcube-demo": "./arcanumcube-demo.esm.min.js",
+                    "arcanumcube": "https://cdn.jsdelivr.net/npm/arcanumcube@0.2.2/+esm",
+                    "three": "https://cdn.jsdelivr.net/npm/three@0.181.1/+esm",
+                    "@tweenjs/tween.js": "https://cdn.jsdelivr.net/npm/@tweenjs/tween.js@25.0.0/+esm"
+                }
+            }
+        </script>
+    </head>
+
+    <body>
+        <div id="controler">
+            <div id="btn_scramble" class="button" ontouchstart>Scramble</div>
+            <div id="btn_reset" class="button" ontouchstart>Reset</div>
+            <div id="btn_undo" class="button" ontouchstart>Undo</div>
+            <div id="btn_solve" class="button" ontouchstart>Solve</div>
+        </div>
+        <div id="infoarea">
+            <div id="messagebox">
+                <div id="message"></div>
+            </div>
+        </div>
+        <div id="viewarea"></div>
+        <script type="module" src="./demo/main.ts"></script>
+    </body>
+</html>

@@ -1,19 +1,24 @@
 {
   "compilerOptions": {
-    "target": "esnext",
+    "target": "es2020",
+    "useDefineForClassFields": true,
     "module": "esnext",
-    "rootDir": "./src",
+    "moduleResolution": "bundler",
+    "lib": ["DOM", "DOM.Iterable", "ES2020", "WebWorker"],
+    "strict": true,
+    "skipLibCheck": false,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
     "allowJs": true,
     "checkJs": true,
-    "isolatedModules": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "sourceMap": true,
-    "strict": true,
-    "outDir": "./dist",
     "noImplicitOverride": true,
-    "forceConsistentCasingInFileNames": true,
-    "moduleResolution": "bundler"
+    "noEmit": true,
+    "types": ["vite/client", "jest"],
+    "baseUrl": ".",
+    "paths": {
+      "@arcanumcube-demo": ["src/index.ts"],
+      "@arcanumcube-demo/*": ["src/*"]
+    }
   },
-  "include": ["./src/**/*.ts"]
+  "include": ["src", "demo", "tests", "vite.config.ts"]
 }
