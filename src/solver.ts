@@ -58,8 +58,11 @@ async function solve(
         return [];
     }
 
-    // Worker内は別スコープのため、ファイルパス指定はURIベースに注意する必要がある。
-    const modelUrl = new URL('/assets/model/twist_cost/model.json', import.meta.url);
+    // Worker内は別スコープで、Viteの時は以下がカレントディレクトリとなる。
+    //   npm run dev: solver.jsのあるディレクトリ(/<base>/src/)
+    //   npm run preview: /<base>/assets
+    // このどちらからもアクセス可能な相対パスで指定する必要がある。
+    const modelUrl = new URL('../assets/model/twist_cost/model.json', import.meta.url);
     //const model = await tf.loadGraphModel(modelUrl.toString());
     const model = await tf.loadLayersModel(modelUrl.toString());
     //console.log(model.summary());

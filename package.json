@@ -38,7 +38,7 @@
   "dependencies": {
     "@tensorflow/tfjs": "^4.22.0",
     "@tweenjs/tween.js": "^25.0.0",
-    "arcanumcube": "^0.2.2",
+    "arcanumcube": "^0.2.3",
     "three": "^0.181.1"
   },
   "devDependencies": {

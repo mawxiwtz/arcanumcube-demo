@@ -4,6 +4,12 @@ import { defineConfig } from 'vite';
 const libEntry = path.resolve(__dirname, 'src/index.ts');
 
 export default defineConfig({
+    base: './',
+    resolve: {
+        alias: {
+            '@arcanumcube-demo': path.resolve(__dirname, 'src'),
+        },
+    },
     build: {
         lib: {
             entry: libEntry,
