@@ -504,10 +504,10 @@ export class World {
     ) {
         const _setMeshData = (child: THREE.Object3D, parent?: THREE.Mesh) => {
             let m: THREE.Mesh | undefined = undefined;
-            if (child instanceof THREE.Mesh) {
+            if ((child as THREE.Mesh).isMesh) {
                 const material =
                     child.name in materials ? materials[child.name] : materials['default'];
-                const geometory = child.geometry;
+                const geometory = (<THREE.Mesh>child).geometry;
                 m = new THREE.Mesh(geometory, material);
                 m.applyMatrix4(child.matrix);
                 if (parent) {
@@ -772,14 +772,14 @@ export class World {
 
             // search selected cube object
             while (true) {
-                if (obj instanceof THREE.Mesh) {
+                if ((obj as THREE.Mesh).isMesh) {
                     obj = <THREE.Group>obj.parent;
-                } else if (obj instanceof THREE.Group) {
+                } else if ((obj as THREE.Group).isGroup) {
                     if (obj.parent instanceof THREE.Scene) {
                         // loop end
                         break;
-                    } else if (obj.parent instanceof THREE.Group) {
-                        obj = obj.parent;
+                    } else if ((obj.parent as THREE.Group).isGroup) {
+                        obj = <THREE.Group>obj.parent;
                     } else {
                         // other object
                         break;

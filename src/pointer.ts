@@ -15,11 +15,11 @@ type PointerInfo = {
  *
  *                     wheel      single             multi-touch
  *        field               normal  control     2fingers   3fingers
- *  -----------------------------------------------------------------------
+ *  --------------------------------------------------------------------
  *     pointersNum        1       1       1            2          3
  *     pointers       <obj>   <obj>   <obj>        <obj>      <obj>
- *     center x           x       U      cx            x          x
- *            y           y       U      cy            y          y
+ *     center x           x      cx      cx           px         px
+ *            y           y      cy      cy           py         py
  *     delta  x           0      dx       0           dx         dx
  *            y           0      dy       0           dy         dy
  *            z       wheel       0       0         zoom       zoom
@@ -32,9 +32,10 @@ type PointerInfo = {
  *      rotate                            t                       t
  *
  *       U = undefined
- *       x = current x    y = current y
- *      cx = center x    cy = center y
- *      dx = delta x     dy = delta y
+ *       x = current x        y = current y
+ *      cx, cy = center of the container
+ *      px, py = center of pointers
+ *      dx = delta x         dy = delta y
  *
  *        zoom: use center.x, center.y, delta.z
  *        move: use delta.x, delta.y
@@ -292,6 +293,7 @@ export class PointerControl {
             //e.preventDefault();
 
             if (!this._isMoving) return;
+            const [w, h] = [this._container.clientWidth, this._container.clientHeight];
 
             // update pointers info
             if (e.pointerId in this._pointers) {
@@ -313,42 +315,65 @@ export class PointerControl {
                 return;
             }
 
-            // １本目のタッチ情報
-            const p0 = pointers[0];
-            if (!p0.old) {
-                return;
-            }
+            // ベクタのリスト
+            const va: Vector2[] = [];
+            const vb: Vector2[] = [];
+            // 平均移動量
+            const d = new Vector2(0, 0);
+            // 重心のベクタ
+            const za = new Vector2(0, 0);
+            const zb = new Vector2(0, 0);
 
-            const [w, h] = [this._container.clientWidth, this._container.clientHeight];
-
-            // １本目の移動量
-            // Containerを右下にドラッグした場合、Containerの中心を左上に移動することと同じ。
-            const d0 = new Vector2(p0.x - p0.old.x, p0.y - p0.old.y);
-
-            if (pointers.length >= 2) {
-                // multi-touch
-                // ２本目のタッチ情報
-                const p1 = pointers[1];
-                if (!p1.old) {
+            // 各ポインタ情報を元に情報を処理する
+            let fingers = 0;
+            for (const p of pointers) {
+                if (!p.old) {
                     return;
                 }
 
-                // ２本目の移動量
-                const d1 = new Vector2(p1.x - p1.old.x, p1.y - p1.old.y);
+                // ポインタベクタ
+                const vo = new Vector2(p.old.x, p.old.y);
+                const vn = new Vector2(p.x, p.y);
+                va.push(vo);
+                vb.push(vn);
 
-                // 総移動量として１本目と２本目の移動量の平均を求める
-                const dx = (d0.x + d1.x) / 2;
-                const dy = (d0.y + d1.y) / 2;
+                // 移動量計算用
+                d.x += p.x - p.old.x;
+                d.y += p.y - p.old.y;
 
-                // ピンチイン・アウトの最終的な中心位置を求める
-                const rx = (p0.x + p1.x) / 2;
-                const ry = (p0.y + p1.y) / 2;
+                // 差分をリセット
+                p.old.x = p.x;
+                p.old.y = p.y;
 
-                this._pointerAction.center = { x: rx, y: ry };
-                if (pointers.length !== 2 || this.enableMoveBy2Fingers) {
-                    // 2本の時enableMoveBy2Fingersがtrueの場合は移動しない
-                    this._pointerAction.delta.x = dx;
-                    this._pointerAction.delta.y = dy;
+                // 重心位置計算用
+                za.add(vo);
+                zb.add(vn);
+
+                fingers++;
+                // 4本目以降のポインタは無視する
+                if (fingers >= 3) break;
+            }
+
+            // 移動が1つもなければ何もしない
+            if (fingers <= 0) return;
+
+            // 全体の移動量として各移動量の平均を求める
+            d.divideScalar(fingers);
+
+            if (fingers >= 2) {
+                // multi touch
+
+                // ピンチイン・アウト用にポインタが作る円の重心を求める
+                za.divideScalar(fingers);
+                zb.divideScalar(fingers);
+
+                // マルチポイントの中心
+                this._pointerAction.center = { x: zb.x, y: zb.y };
+
+                if (fingers >= 3 || this.enableMoveBy2Fingers) {
+                    // 3本以上、またはenableMoveBy2Fingersがtrueの場合は移動可能
+                    this._pointerAction.delta.x = d.x;
+                    this._pointerAction.delta.y = d.y;
                 } else {
                     this._pointerAction.delta.x = 0;
                     this._pointerAction.delta.y = 0;
@@ -357,49 +382,33 @@ export class PointerControl {
                 this._pointerAction.delta.thetaX = 0;
                 this._pointerAction.delta.thetaY = 0;
 
-                // ２本のタッチ位置（移動前、移動後）を正規化する
-                const v00 = new Vector2(p0.old.x / w - 0.5, p0.old.y / h - 0.5);
-                const v01 = new Vector2(p0.x / w - 0.5, p0.y / h - 0.5);
-                const v10 = new Vector2(p1.old.x / w - 0.5, p1.old.y / h - 0.5);
-                const v11 = new Vector2(p1.x / w - 0.5, p1.y / h - 0.5);
+                // va、vbを重心起点にする
+                for (let i = 0; i < fingers; i++) {
+                    va[i].sub(za);
+                    vb[i].sub(zb);
+                }
 
                 // ピンチイン・アウト
-                // １本目と２本目の移動場所、移動量からズームの変化を計算する
+                // 移動前、移動後での円の半径比率からズーム倍率を計算する
                 // 3本以上の時はenableZoomWhen3Fingersがtrueの時のみピンチイン・アウトを許可する。
                 if (
                     this.enableZoom &&
-                    (pointers.length === 2 || (pointers.length >= 3 && this.enableZoomBy3Fingers))
+                    (fingers === 2 || (this.enableZoomBy3Fingers && fingers >= 3))
                 ) {
-                    const rb = Math.sqrt((p0.old.x - p1.old.x) ** 2 + (p0.old.y - p1.old.y) ** 2);
-                    const ra = Math.sqrt((p0.x - p1.x) ** 2 + (p0.y - p1.y) ** 2);
-                    this._pointerAction.delta.z = rb / ra;
+                    const ra = Math.sqrt(va[0].lengthSq());
+                    const rb = Math.sqrt(vb[0].lengthSq());
+                    this._pointerAction.delta.z = ra / rb;
                 } else {
                     this._pointerAction.delta.z = 0;
                 }
-                /*
-                 * ピンチイン・アウトによるズームを正負で表したい場合
-                const dist0 = v00.distanceTo(v10);
-                const dist1 = v01.distanceTo(v11);
-                this._pointerAction.delta.z = dist0 - dist1;
-                */
 
-                if (this.enableRotate && pointers.length >= 3) {
-                    // ３本以上のときのみ回転有効
-
-                    // ２本指間の中間位置を求める
-                    const c00 = v00.clone().add(v10).divideScalar(2);
-                    const c01 = v01.clone().add(v11).divideScalar(2);
-
-                    // 地図の中央を円の中心としたベクトルにする
-                    v00.sub(c00);
-                    v10.sub(c00);
-                    v01.sub(c01);
-                    v11.sub(c01);
-
+                // ３本以上のときのみ回転有効
+                if (this.enableRotate && fingers >= 3) {
                     // 各指の回転角を求め、合算を平均したものを地図の回転角とする
-                    const delta0 = v00.angleTo(v01) * (v00.cross(v01) < 0 ? -1 : 1);
-                    const delta1 = v10.angleTo(v11) * (v10.cross(v11) < 0 ? -1 : 1);
-                    const deltaRad = (delta0 + delta1) / 2;
+                    const delta0 = va[0].angleTo(vb[0]) * (va[0].cross(vb[0]) < 0 ? -1 : 1);
+                    const delta1 = va[1].angleTo(vb[1]) * (va[1].cross(vb[1]) < 0 ? -1 : 1);
+                    const delta2 = va[2].angleTo(vb[2]) * (va[2].cross(vb[2]) < 0 ? -1 : 1);
+                    const deltaRad = (delta0 + delta1 + delta2) / 3;
 
                     this._pointerAction.delta.theta = deltaRad;
                     this._pointerAction.delta.thetaX = 0;
@@ -411,21 +420,21 @@ export class PointerControl {
 
                 if (this.enableRotate && e.ctrlKey) {
                     // Control + ドラッグでポインタの位置を中心とした回転
-                    const v0 = new Vector2(p0.old.x / w - 0.5, p0.old.y / h - 0.5);
-                    const v1 = new Vector2(p0.x / w - 0.5, p0.y / h - 0.5);
+                    const v0 = new Vector2(va[0].x / w - 0.5, va[0].y / h - 0.5);
+                    const v1 = new Vector2(vb[0].x / w - 0.5, vb[0].y / h - 0.5);
                     const sign = v0.cross(v1) < 0 ? -1 : 1;
 
                     this._pointerAction.center = { x: w / 2, y: h / 2 };
                     this._pointerAction.delta.x = 0;
                     this._pointerAction.delta.y = 0;
                     this._pointerAction.delta.theta = v0.angleTo(v1) * sign;
-                    this._pointerAction.delta.thetaX = d0.x;
-                    this._pointerAction.delta.thetaY = d0.y;
+                    this._pointerAction.delta.thetaX = d.x;
+                    this._pointerAction.delta.thetaY = d.y;
                 } else {
                     // Container上の移動
-                    this._pointerAction.center = undefined;
-                    this._pointerAction.delta.x = d0.x;
-                    this._pointerAction.delta.y = d0.y;
+                    this._pointerAction.center = { x: w / 2, y: h / 2 };
+                    this._pointerAction.delta.x = d.x;
+                    this._pointerAction.delta.y = d.y;
                     this._pointerAction.delta.theta = 0;
                     this._pointerAction.delta.thetaX = 0;
                     this._pointerAction.delta.thetaY = 0;
