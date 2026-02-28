@@ -40,6 +40,12 @@ type PointerInfo = {
  *        zoom: use center.x, center.y, delta.z
  *        move: use delta.x, delta.y
  *      rotate: use center.x, center.y, delta.theta
+ *
+ * The range of the z differs between single-touch and multi-touch modes.
+ * In single-touch mode, a positive value indicates zoom-in (enlargement),
+ * while a negative value indicates zoom-out (reduction). In multi-touch
+ * mode, the value is always positive. A value greater than or equal to
+ * 1 indicates zoom-in, whereas a value less than 1 indicates zoom-out.
  */
 export type PointerAction = {
     pointersNum: number; // touching fingers number
@@ -130,7 +136,7 @@ export class PointerControl {
 
         this._interval_wheel = 20;
         this._accumulatedDelta = 0;
-        this._accumulatedDeltaWeight = 30;
+        this._accumulatedDeltaWeight = 50;
         this._timer_wheel = null;
 
         // set option parameters
@@ -451,6 +457,10 @@ export class PointerControl {
         };
     }
 
+    /*
+     * Wheel action
+     * (it includes scroll and pinch in / out actions on the trackpad)
+     */
     handlerWheel() {
         return (e: WheelEvent) => {
             if (!this._enabled) return;
@@ -467,8 +477,10 @@ export class PointerControl {
             if (this._timer_wheel === null) {
                 this._timer_wheel = window.setTimeout(() => {
                     // 増分が正なら +1, 負なら -1
-                    const wa = this._accumulatedDelta / this._accumulatedDeltaWeight;
-                    const direction = wa > 1.0 ? 1 : wa < -1.0 ? -1 : 0;
+                    // TrackPadでPinch in/out操作時はe.ctrlKeyがtrueになる
+                    const wa =
+                        this._accumulatedDelta / (e.ctrlKey ? 1 : this._accumulatedDeltaWeight);
+                    const direction = wa > 1.0 ? -1 : wa < -1.0 ? 1 : 0;
 
                     if (direction !== 0) {
                         // ホイール操作開始位置を中心に拡大縮小する

@@ -6,31 +6,32 @@ A demo application of Arcanum Cube that allows you to solve puzzles and play.
 
 ## Usage
 
-### 1. Build
+### 1. Prepare
 
 ```
 npm install
-npm run build
 ```
 
 ### 2. Run
 
 ```
-npm start
+npm run dev
 ```
 
 ### 3. Play
 
-Access http://localhost:3000 in your browser.
+Access http://localhost:5173 in your browser.
 
-If you want to access from a location other than localhost, please change the host value in esbuild.js to 0.0.0.0 as below.
+If you want to allow connections from hosts other than localhost, run the command as follows.
 
 ```
-await ctx.serve({
-    host: '0.0.0.0',
-    port: 3000,
-    servedir: `${destdir}/`,
-});
+npm run dev -- --host
+```
+
+If you want to listen on port 3000, run the command as follows.
+
+```
+npm run dev -- --port 3000
 ```
 
 ## License

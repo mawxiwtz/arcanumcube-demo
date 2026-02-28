@@ -708,7 +708,7 @@ export class World {
             if (pa.pointersNum > 1) {
                 // multi-touch
                 if (pa.delta.z > 1) {
-                    z += -0.1 * speed;
+                    z -= 0.1 * speed;
                     //if (z < this.zoomMin) z = this.zoomMin;
                     if (z < -2) z = -2;
                 } else if (pa.delta.z < 1 && pa.delta.z > 0) {
@@ -719,13 +719,13 @@ export class World {
             } else {
                 // sigle-touch
                 if (pa.delta.z > 0) {
-                    z += -0.1 * speed;
+                    z += 0.5 * speed;
                     //if (z < this.zoomMin) z = this.zoomMin;
-                    if (z < -2) z = -2;
-                } else if (pa.delta.z < 0) {
-                    z += 0.1 * speed;
-                    //if (z > this.zoomMax) z = this.zoomMax;
                     if (z > 2) z = 2;
+                } else if (pa.delta.z < 0) {
+                    z -= 0.5 * speed;
+                    //if (z > this.zoomMax) z = this.zoomMax;
+                    if (z < -2) z = -2;
                 }
             }
             this._delta.z = z;
